@@ -14,6 +14,20 @@ interface BlogPost {
   draft: boolean;
 }
 
+type PostInputData = Pick<BlogPost, "body" | "title">;
+
+const validatInputMiddleware: express.RequestHandler = (req, res, next) => {
+  const postData: PostInputData = req.body;
+  if (!postData.title) {
+    return res.status(403).send({ error: "title field is required" });
+  }
+  if (!postData.body) {
+    return res.status(403).send({ error: "body field is required" });
+  }
+
+  next();
+};
+
 let posts: BlogPost[] = [
   {
     id: 0,
@@ -32,7 +46,7 @@ let posts: BlogPost[] = [
 ];
 
 app.get("/posts/", (req, res) => {
-  res.send(posts);
+  return res.send(posts);
 });
 
 app.get("/posts/:id", (req, res) => {
@@ -41,7 +55,33 @@ app.get("/posts/:id", (req, res) => {
   if (!post) {
     return res.status(404).send({ msg: "not found" });
   }
-  res.send(post);
+  return res.send(post);
+});
+
+app.get("/posts/:id/public", (req, res) => {
+  const id = Number(req.params.id);
+  const postToPublicIdx = posts.findIndex((post) => post.id == id);
+  if (!posts[postToPublicIdx]) {
+    return res.status(404).send({ msg: "not found" });
+  }
+  posts[postToPublicIdx].draft = true;
+  return res.send(posts[postToPublicIdx]);
+});
+
+app.put("/posts/:id", validatInputMiddleware, (req, res) => {
+  const id = Number(req.params.id);
+  const postData: Pick<BlogPost, "title" | "body"> = req.body;
+
+  const postToUpdateIndex = posts.findIndex((post) => post.id == id);
+  if (!posts[postToUpdateIndex]) {
+    return res.status(404).send({ msg: "not found" });
+  }
+  posts[postToUpdateIndex] = {
+    ...posts[postToUpdateIndex],
+    title: postData.title,
+    body: postData.body,
+  };
+  return res.send(posts[postToUpdateIndex]);
 });
 
 app.delete("/posts/:id", (req, res) => {
@@ -54,8 +94,8 @@ app.delete("/posts/:id", (req, res) => {
   return res.send(postToDelete);
 });
 
-app.post("/posts/", (req, res) => {
-  const postData = req.body;
+app.post("/posts/", validatInputMiddleware, (req, res) => {
+  const postData: Pick<BlogPost, "body" | "title"> = req.body;
   const lastPost = posts[posts.length - 1];
   const newPost: BlogPost = {
     id: lastPost ? lastPost.id + 1 : 0,
